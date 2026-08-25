@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+*.log
+.next/
+dist/
+build/
+
+# Backup files (encrypted)
+server/backups/*.enc
+
+# Security keys
+*.pem
+*.key
