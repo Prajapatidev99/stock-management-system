@@ -113,8 +113,6 @@ router.get('/:id/profile', async (req, res) => {
     const transactions = await Transaction.find({ contact_id: contact._id, user_id: req.user._id })
       .populate('product_id', 'name category sku stock price purchase_price selling_price')
       .sort({ date: -1 });
-      .populate('product_id', 'name category sku stock price purchase_price selling_price')
-      .sort({ date: -1 });
 
     const grossAmount = transactions
       .filter(t => t.type === 'purchase' || t.type === 'sale')
