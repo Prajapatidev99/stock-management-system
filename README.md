@@ -79,22 +79,6 @@ stock-management-system/
 
 ---
 
-## 🚀 Environment Setup
-
-### Server (`server/.env`)
-```env
-PORT=5000
-MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/stock-management?retryWrites=true&w=majority
-JWT_SECRET=your_super_secret_jwt_key_32_chars_long
-CLIENT_URL=https://stock-management-system-six-lyart.vercel.app
-```
-
-### Client (`client/.env.local`)
-```env
-NEXT_PUBLIC_API_URL=https://stock-management-system-pgc7.onrender.com/api
-```
-
----
 
 ## 📦 Deployment Instructions
 
@@ -109,7 +93,7 @@ NEXT_PUBLIC_API_URL=https://stock-management-system-pgc7.onrender.com/api
    - Import GitHub repository.
    - Set **Root Directory**: `client`
    - Framework Preset: `Next.js`
-   - Set Environment Variable: `NEXT_PUBLIC_API_URL=https://stock-management-system-pgc7.onrender.com/api`
+   
 
 ---
 
