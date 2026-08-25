@@ -16,20 +16,13 @@ router.use(protect);
 router.get('/', async (req, res) => {
   try {
     const { search, category } = req.query;
-    const filter = {
-      isDeleted: false,
-      $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
-    };
+    const filter = { isDeleted: false, user_id: req.user._id };
 
     if (search) {
       const safeSearch = escapeRegex(search);
-      filter.$and = [
-        {
-          $or: [
-            { name: { $regex: safeSearch, $options: 'i' } },
-            { category: { $regex: safeSearch, $options: 'i' } },
-          ],
-        },
+      filter.$or = [
+        { name: { $regex: safeSearch, $options: 'i' } },
+        { category: { $regex: safeSearch, $options: 'i' } },
       ];
     }
 
@@ -47,11 +40,7 @@ router.get('/', async (req, res) => {
 // ─── GET /api/products/:id ──────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
-    const product = await Product.findOne({
-      _id: req.params.id,
-      isDeleted: false,
-      $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
-    });
+    const product = await Product.findOne({ _id: req.params.id, user_id: req.user._id, isDeleted: false });
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.json(product);
   } catch (err) {
@@ -108,15 +97,11 @@ router.put(
       }
 
       // Don't allow direct stock manipulation via this route (use transactions)
-      const updateData = { ...req.body, user_id: req.user._id };
+      const updateData = { ...req.body };
       delete updateData.stock;
 
       const product = await Product.findOneAndUpdate(
-        {
-          _id: req.params.id,
-          isDeleted: false,
-          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
-        },
+        { _id: req.params.id, user_id: req.user._id, isDeleted: false },
         { $set: updateData },
         { new: true, runValidators: true }
       );
@@ -133,12 +118,8 @@ router.put(
 router.delete('/:id', async (req, res) => {
   try {
     const product = await Product.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        isDeleted: false,
-        $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
-      },
-      { $set: { isDeleted: true, user_id: req.user._id } },
+      { _id: req.params.id, user_id: req.user._id, isDeleted: false },
+      { $set: { isDeleted: true } },
       { new: true }
     );
 

@@ -107,6 +107,30 @@ mongoose
       console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
 
+    // ─── Auto-Migrate Legacy Unassigned Documents to Primary User ────────
+    (async () => {
+      try {
+        const User = require('./models/User');
+        const Product = require('./models/Product');
+        const Contact = require('./models/Contact');
+        const Transaction = require('./models/Transaction');
+        const PaymentLog = require('./models/PaymentLog');
+
+        const primaryUser = await User.findOne({ email: process.env.ADMIN_EMAIL }) || await User.findOne().sort({ createdAt: 1 });
+        if (primaryUser) {
+          const unassignedFilter = { $or: [{ user_id: { $exists: false } }, { user_id: null }] };
+          await Promise.all([
+            Product.updateMany(unassignedFilter, { $set: { user_id: primaryUser._id } }),
+            Contact.updateMany(unassignedFilter, { $set: { user_id: primaryUser._id } }),
+            Transaction.updateMany(unassignedFilter, { $set: { user_id: primaryUser._id } }),
+            PaymentLog.updateMany(unassignedFilter, { $set: { user_id: primaryUser._id } }),
+          ]);
+        }
+      } catch (e) {
+        console.error('Migration startup notice:', e.message);
+      }
+    })();
+
     // ─── Scheduled Daily Backup (midnight) ────────────────────────────────
     cron.schedule('0 0 * * *', async () => {
       console.log('⏰ Running scheduled daily backup...');
