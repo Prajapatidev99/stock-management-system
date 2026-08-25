@@ -282,8 +282,30 @@ router.post(
       }
 
       if (!productObj) {
-        await session.abortTransaction();
-        return res.status(404).json({ message: 'Product not found' });
+        if (pName) {
+          // Auto-create product on the fly during sale
+          const purchasePrice = req.body.purchase_price && parseFloat(req.body.purchase_price) > 0
+            ? parseFloat(req.body.purchase_price)
+            : parseFloat((price * 0.8).toFixed(2));
+
+          const [newProduct] = await Product.create(
+            [
+              {
+                name: pName,
+                category: req.body.category || null,
+                stock: quantity, // Initialize with quantity so net stock becomes 0 after sale
+                purchase_price: purchasePrice,
+                selling_price: price,
+                user_id: req.user._id,
+              },
+            ],
+            { session }
+          );
+          productObj = newProduct;
+        } else {
+          await session.abortTransaction();
+          return res.status(404).json({ message: 'Product not found. Please select or type a product name.' });
+        }
       }
 
       if (productObj.stock < quantity) {
