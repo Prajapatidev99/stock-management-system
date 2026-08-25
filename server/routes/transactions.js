@@ -636,7 +636,7 @@ router.get('/', async (req, res) => {
 // ─── GET /api/transactions/summary ──────────────────────────────────────────────
 router.get('/summary', async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = new mongoose.Types.ObjectId(req.user._id);
     const [purchaseAgg, purchaseReturnAgg, saleAgg, salesReturnAgg, productStats, lowStockProducts] = await Promise.all([
       Transaction.aggregate([
         { $match: { user_id: userId, type: 'purchase' } },
@@ -702,8 +702,9 @@ router.get('/chart', async (req, res) => {
     const fromDate = new Date();
     fromDate.setMonth(fromDate.getMonth() - parseInt(months));
 
+    const userId = new mongoose.Types.ObjectId(req.user._id);
     const data = await Transaction.aggregate([
-      { $match: { user_id: req.user._id, date: { $gte: fromDate } } },
+      { $match: { user_id: userId, date: { $gte: fromDate } } },
       {
         $group: {
           _id: {
