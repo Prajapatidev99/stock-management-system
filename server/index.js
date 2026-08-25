@@ -32,10 +32,28 @@ if (process.env.JWT_SECRET.length < 32) {
 app.use(helmet());
 
 // CORS: restrict to known client origin
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+
+    const configuredClient = (process.env.CLIENT_URL || 'http://localhost:3000').trim();
+    const formattedClient = configuredClient.startsWith('http') ? configuredClient : `https://${configuredClient}`;
+    
+    const cleanOrigin = origin.replace(/\/$/, '');
+    const cleanClient = formattedClient.replace(/\/$/, '');
+
+    // Allow exact configured origin or any Vercel deployment preview
+    if (cleanOrigin === cleanClient || cleanOrigin.endsWith('.vercel.app') || process.env.NODE_ENV !== 'production') {
+      return callback(null, cleanOrigin);
+    }
+
+    return callback(null, cleanClient);
+  },
   credentials: true,
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Body parser with size limit to prevent payload attacks
 app.use(express.json({ limit: '1mb' }));
