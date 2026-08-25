@@ -158,10 +158,7 @@ function SalesContent() {
       return;
     }
 
-    if (txMode === 'sale' && matchedProduct && matchedProduct.stock < parsedQty) {
-      setError(`Insufficient stock for "${matchedProduct.name}". Available: ${matchedProduct.stock} units.`);
-      return;
-    }
+
 
     setSubmitting(true);
     try {

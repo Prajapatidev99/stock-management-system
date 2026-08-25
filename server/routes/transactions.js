@@ -309,10 +309,13 @@ router.post(
       }
 
       if (productObj.stock < quantity) {
-        await session.abortTransaction();
-        return res.status(400).json({
-          message: `Insufficient stock for "${productObj.name}". Available: ${productObj.stock}, Requested: ${quantity}`,
-        });
+        // Auto-replenish stock to match sale quantity so sale is never blocked
+        await Product.findByIdAndUpdate(
+          productObj._id,
+          { $set: { stock: quantity } },
+          { session }
+        );
+        productObj.stock = quantity;
       }
 
       const total_amount = parseFloat((quantity * price).toFixed(2));
