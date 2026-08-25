@@ -26,12 +26,17 @@ const contactSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User ID is required'],
+    },
   },
   { timestamps: true }
 );
 
 // Indexes for efficient querying
-contactSchema.index({ type: 1, isDeleted: 1 });
-contactSchema.index({ name: 'text' });
+contactSchema.index({ user_id: 1, type: 1, isDeleted: 1 });
+contactSchema.index({ user_id: 1, name: 'text' });
 
 module.exports = mongoose.model('Contact', contactSchema);

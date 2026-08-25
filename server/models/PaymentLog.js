@@ -31,10 +31,15 @@ const paymentLogSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
   },
   { timestamps: true }
 );
 
-paymentLogSchema.index({ contact_id: 1, date: -1 });
+paymentLogSchema.index({ user_id: 1, contact_id: 1, date: -1 });
 
 module.exports = mongoose.model('PaymentLog', paymentLogSchema);

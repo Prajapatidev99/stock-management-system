@@ -16,7 +16,7 @@ router.use(protect);
 router.get('/', async (req, res) => {
   try {
     const { search, category } = req.query;
-    const filter = { isDeleted: false };
+    const filter = { isDeleted: false, user_id: req.user._id };
 
     if (search) {
       const safeSearch = escapeRegex(search);
@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
 // ─── GET /api/products/:id ──────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
-    const product = await Product.findOne({ _id: req.params.id, isDeleted: false });
+    const product = await Product.findOne({ _id: req.params.id, user_id: req.user._id, isDeleted: false });
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.json(product);
   } catch (err) {
@@ -66,7 +66,14 @@ router.post(
       }
 
       const { name, category, stock, purchase_price, selling_price } = req.body;
-      const product = await Product.create({ name, category, stock: stock || 0, purchase_price, selling_price });
+      const product = await Product.create({
+        name,
+        category,
+        stock: stock || 0,
+        purchase_price,
+        selling_price,
+        user_id: req.user._id,
+      });
       res.status(201).json(product);
     } catch (err) {
       res.status(500).json({ message: 'Failed to create product' });
@@ -94,7 +101,7 @@ router.put(
       delete updateData.stock;
 
       const product = await Product.findOneAndUpdate(
-        { _id: req.params.id, isDeleted: false },
+        { _id: req.params.id, user_id: req.user._id, isDeleted: false },
         { $set: updateData },
         { new: true, runValidators: true }
       );
@@ -111,7 +118,7 @@ router.put(
 router.delete('/:id', async (req, res) => {
   try {
     const product = await Product.findOneAndUpdate(
-      { _id: req.params.id, isDeleted: false },
+      { _id: req.params.id, user_id: req.user._id, isDeleted: false },
       { $set: { isDeleted: true } },
       { new: true }
     );

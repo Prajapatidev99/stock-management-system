@@ -64,14 +64,19 @@ const transactionSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User ID is required'],
+    },
   },
   { timestamps: true }
 );
 
 // Indexes for filtering and sorting
-transactionSchema.index({ type: 1, date: -1 });
-transactionSchema.index({ contact_id: 1 });
-transactionSchema.index({ product_id: 1 });
-transactionSchema.index({ date: -1 });
+transactionSchema.index({ user_id: 1, type: 1, date: -1 });
+transactionSchema.index({ user_id: 1, contact_id: 1 });
+transactionSchema.index({ user_id: 1, product_id: 1 });
+transactionSchema.index({ user_id: 1, date: -1 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);

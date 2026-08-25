@@ -59,19 +59,20 @@ router.post(
       let contactObj = null;
 
       if (contact_id && isValidId(contact_id)) {
-        contactObj = await Contact.findOne({ _id: contact_id, isDeleted: false }).session(session);
+        contactObj = await Contact.findOne({ _id: contact_id, user_id: req.user._id, isDeleted: false }).session(session);
       }
 
       const wName = (wholesaler_name || contact_name || '').trim();
       if (!contactObj && wName) {
         contactObj = await Contact.findOne({
           name: { $regex: new RegExp(`^${escapeRegex(wName)}$`, 'i') },
+          user_id: req.user._id,
           isDeleted: false,
         }).session(session);
 
         if (!contactObj) {
           const [createdContact] = await Contact.create(
-            [{ name: wName, type: 'wholesaler' }],
+            [{ name: wName, type: 'wholesaler', user_id: req.user._id }],
             { session }
           );
           contactObj = createdContact;
@@ -87,13 +88,14 @@ router.post(
       let productObj = null;
 
       if (product_id && isValidId(product_id)) {
-        productObj = await Product.findOne({ _id: product_id, isDeleted: false }).session(session);
+        productObj = await Product.findOne({ _id: product_id, user_id: req.user._id, isDeleted: false }).session(session);
       }
 
       const pName = (product_name || '').trim();
       if (!productObj && pName) {
         productObj = await Product.findOne({
           name: { $regex: new RegExp(`^${escapeRegex(pName)}$`, 'i') },
+          user_id: req.user._id,
           isDeleted: false,
         }).session(session);
       }
@@ -122,6 +124,7 @@ router.post(
               stock: quantity,
               purchase_price: price,
               selling_price: selPrice,
+              user_id: req.user._id,
             },
           ],
           { session }
@@ -161,6 +164,7 @@ router.post(
             payment_status,
             date: date || new Date(),
             notes,
+            user_id: req.user._id,
           },
         ],
         { session }
@@ -176,6 +180,7 @@ router.post(
               payment_mode: ['cash', 'bank', 'online', 'cheque'].includes(payment_mode) ? payment_mode : 'cash',
               notes: notes ? `Upfront purchase payment: ${notes}` : `Upfront payment for purchase`,
               date: date || new Date(),
+              user_id: req.user._id,
             },
           ],
           { session }
@@ -236,19 +241,20 @@ router.post(
       // 1. Resolve Retailer Contact
       let contactObj = null;
       if (contact_id && isValidId(contact_id)) {
-        contactObj = await Contact.findOne({ _id: contact_id, isDeleted: false }).session(session);
+        contactObj = await Contact.findOne({ _id: contact_id, user_id: req.user._id, isDeleted: false }).session(session);
       }
 
       const rName = (retailer_name || contact_name || '').trim();
       if (!contactObj && rName) {
         contactObj = await Contact.findOne({
           name: { $regex: new RegExp(`^${escapeRegex(rName)}$`, 'i') },
+          user_id: req.user._id,
           isDeleted: false,
         }).session(session);
 
         if (!contactObj) {
           const [createdContact] = await Contact.create(
-            [{ name: rName, type: 'retailer' }],
+            [{ name: rName, type: 'retailer', user_id: req.user._id }],
             { session }
           );
           contactObj = createdContact;
@@ -263,13 +269,14 @@ router.post(
       // 2. Resolve Product and check available stock
       let productObj = null;
       if (product_id && isValidId(product_id)) {
-        productObj = await Product.findOne({ _id: product_id, isDeleted: false }).session(session);
+        productObj = await Product.findOne({ _id: product_id, user_id: req.user._id, isDeleted: false }).session(session);
       }
 
       const pName = (product_name || '').trim();
       if (!productObj && pName) {
         productObj = await Product.findOne({
           name: { $regex: new RegExp(`^${escapeRegex(pName)}$`, 'i') },
+          user_id: req.user._id,
           isDeleted: false,
         }).session(session);
       }
@@ -322,6 +329,7 @@ router.post(
             payment_status,
             date: date || new Date(),
             notes,
+            user_id: req.user._id,
           },
         ],
         { session }
@@ -337,6 +345,7 @@ router.post(
               payment_mode: ['cash', 'bank', 'online', 'cheque'].includes(payment_mode) ? payment_mode : 'cash',
               notes: notes ? `Upfront sale payment: ${notes}` : `Upfront payment for sale`,
               date: date || new Date(),
+              user_id: req.user._id,
             },
           ],
           { session }
@@ -375,13 +384,13 @@ router.post('/purchase-return', async (req, res) => {
       return res.status(400).json({ message: 'Invalid quantity or price for purchase return' });
     }
 
-    const contact = await Contact.findOne({ _id: contact_id, isDeleted: false }).session(session);
+    const contact = await Contact.findOne({ _id: contact_id, user_id: req.user._id, isDeleted: false }).session(session);
     if (!contact) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Wholesaler contact not found' });
     }
 
-    const product = await Product.findOne({ _id: product_id, isDeleted: false }).session(session);
+    const product = await Product.findOne({ _id: product_id, user_id: req.user._id, isDeleted: false }).session(session);
     if (!product) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Product not found' });
@@ -404,6 +413,7 @@ router.post('/purchase-return', async (req, res) => {
     let returnAmountLeft = total_amount;
     const unpaidTxs = await Transaction.find({
       contact_id: contact._id,
+      user_id: req.user._id,
       type: 'purchase',
       remaining_balance: { $gt: 0 },
     }).sort({ date: 1 }).session(session);
@@ -434,6 +444,7 @@ router.post('/purchase-return', async (req, res) => {
           payment_status: 'paid',
           date: date || new Date(),
           notes: notes || 'Purchase Return to Wholesaler',
+          user_id: req.user._id,
         },
       ],
       { session }
@@ -470,13 +481,13 @@ router.post('/sales-return', async (req, res) => {
       return res.status(400).json({ message: 'Invalid quantity or price for sales return' });
     }
 
-    const contact = await Contact.findOne({ _id: contact_id, isDeleted: false }).session(session);
+    const contact = await Contact.findOne({ _id: contact_id, user_id: req.user._id, isDeleted: false }).session(session);
     if (!contact) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Retailer contact not found' });
     }
 
-    const product = await Product.findOne({ _id: product_id, isDeleted: false }).session(session);
+    const product = await Product.findOne({ _id: product_id, user_id: req.user._id, isDeleted: false }).session(session);
     if (!product) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Product not found' });
@@ -492,6 +503,7 @@ router.post('/sales-return', async (req, res) => {
     let returnAmountLeft = total_amount;
     const unpaidTxs = await Transaction.find({
       contact_id: contact._id,
+      user_id: req.user._id,
       type: 'sale',
       remaining_balance: { $gt: 0 },
     }).sort({ date: 1 }).session(session);
@@ -521,6 +533,7 @@ router.post('/sales-return', async (req, res) => {
           payment_status: 'paid',
           date: date || new Date(),
           notes: notes || 'Sales Return from Retailer/Customer',
+          user_id: req.user._id,
         },
       ],
       { session }
@@ -547,7 +560,7 @@ router.get('/', async (req, res) => {
   try {
     const { type, contact_id, product_id, from, to, search, page = 1, limit = 50 } = req.query;
 
-    const filter = {};
+    const filter = { user_id: req.user._id };
 
     if (type && ['purchase', 'sale', 'purchase_return', 'sales_return'].includes(type)) {
       filter.type = type;
@@ -598,25 +611,26 @@ router.get('/', async (req, res) => {
 // ─── GET /api/transactions/summary ──────────────────────────────────────────────
 router.get('/summary', async (req, res) => {
   try {
+    const userId = req.user._id;
     const [purchaseAgg, purchaseReturnAgg, saleAgg, salesReturnAgg, productStats, lowStockProducts] = await Promise.all([
       Transaction.aggregate([
-        { $match: { type: 'purchase' } },
+        { $match: { user_id: userId, type: 'purchase' } },
         { $group: { _id: null, total: { $sum: '$total_amount' }, count: { $sum: 1 } } },
       ]),
       Transaction.aggregate([
-        { $match: { type: 'purchase_return' } },
+        { $match: { user_id: userId, type: 'purchase_return' } },
         { $group: { _id: null, total: { $sum: '$total_amount' }, count: { $sum: 1 } } },
       ]),
       Transaction.aggregate([
-        { $match: { type: 'sale' } },
+        { $match: { user_id: userId, type: 'sale' } },
         { $group: { _id: null, total: { $sum: '$total_amount' }, count: { $sum: 1 } } },
       ]),
       Transaction.aggregate([
-        { $match: { type: 'sales_return' } },
+        { $match: { user_id: userId, type: 'sales_return' } },
         { $group: { _id: null, total: { $sum: '$total_amount' }, count: { $sum: 1 } } },
       ]),
       Product.aggregate([
-        { $match: { isDeleted: false } },
+        { $match: { user_id: userId, isDeleted: false } },
         {
           $group: {
             _id: null,
@@ -625,7 +639,7 @@ router.get('/summary', async (req, res) => {
           },
         },
       ]),
-      Product.find({ isDeleted: false, stock: { $lt: 10 } })
+      Product.find({ user_id: userId, isDeleted: false, stock: { $lt: 10 } })
         .select('name category stock purchase_price selling_price')
         .sort({ stock: 1 }),
     ]);
@@ -664,7 +678,7 @@ router.get('/chart', async (req, res) => {
     fromDate.setMonth(fromDate.getMonth() - parseInt(months));
 
     const data = await Transaction.aggregate([
-      { $match: { date: { $gte: fromDate } } },
+      { $match: { user_id: req.user._id, date: { $gte: fromDate } } },
       {
         $group: {
           _id: {
@@ -698,7 +712,7 @@ router.post('/pay-balance', async (req, res) => {
       return res.status(400).json({ message: 'Valid contact and payment amount are required' });
     }
 
-    const contact = await Contact.findOne({ _id: contact_id, isDeleted: false }).session(session);
+    const contact = await Contact.findOne({ _id: contact_id, user_id: req.user._id, isDeleted: false }).session(session);
     if (!contact) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Contact not found' });
@@ -707,6 +721,7 @@ router.post('/pay-balance', async (req, res) => {
     // Find unpaid or partially paid transactions for this contact (oldest first)
     const unpaidTxs = await Transaction.find({
       contact_id: contact._id,
+      user_id: req.user._id,
       remaining_balance: { $gt: 0 },
     }).sort({ date: 1 }).session(session);
 
@@ -737,6 +752,7 @@ router.post('/pay-balance', async (req, res) => {
             payment_mode: mode,
             notes: notes ? `Balance payment: ${notes}` : 'Outstanding balance settlement',
             date: new Date(),
+            user_id: req.user._id,
           },
         ],
         { session }
@@ -762,7 +778,7 @@ router.post('/pay-balance', async (req, res) => {
 // ─── GET /api/transactions/dues ──────────────────────────────────────────────────
 router.get('/dues', async (req, res) => {
   try {
-    const unpaidTxs = await Transaction.find({ remaining_balance: { $gt: 0 } })
+    const unpaidTxs = await Transaction.find({ user_id: req.user._id, remaining_balance: { $gt: 0 } })
       .populate('contact_id', 'name type phone address isDeleted')
       .populate('product_id', 'name');
 
@@ -829,7 +845,7 @@ router.get('/dues', async (req, res) => {
 router.get('/payment-logs', async (req, res) => {
   try {
     const { contact_id, limit = 50 } = req.query;
-    const filter = {};
+    const filter = { user_id: req.user._id };
     if (contact_id && isValidId(contact_id)) {
       filter.contact_id = contact_id;
     }
@@ -857,13 +873,13 @@ router.delete('/:id', async (req, res) => {
   session.startTransaction();
 
   try {
-    const tx = await Transaction.findById(req.params.id).session(session);
+    const tx = await Transaction.findOne({ _id: req.params.id, user_id: req.user._id }).session(session);
     if (!tx) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Transaction not found' });
     }
 
-    const product = await Product.findById(tx.product_id).session(session);
+    const product = await Product.findOne({ _id: tx.product_id, user_id: req.user._id }).session(session);
 
     if (product) {
       if (tx.type === 'purchase') {
@@ -894,7 +910,7 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Remove payment logs associated with this transaction
-    await PaymentLog.deleteMany({ transaction_id: tx._id }, { session });
+    await PaymentLog.deleteMany({ transaction_id: tx._id, user_id: req.user._id }, { session });
 
     // Delete transaction
     await Transaction.findByIdAndDelete(tx._id, { session });

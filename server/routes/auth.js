@@ -5,6 +5,8 @@ const rateLimit = require('express-rate-limit');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 
+const bcrypt = require('bcryptjs');
+
 const router = express.Router();
 
 // Strict rate limiter for login: 15 attempts per 15 minutes per IP
@@ -20,6 +22,59 @@ const loginLimiter = rateLimit({
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
+
+// POST /api/register
+router.post(
+  '/register',
+  [
+    body('name').trim().notEmpty().withMessage('Name is required'),
+    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ message: errors.array()[0].msg });
+      }
+
+      const { name, email, password } = req.body;
+
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+      const user = await User.create({
+        name,
+        email,
+        passwordHash,
+      });
+
+      const token = generateToken(user._id);
+
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.status(201).json({
+        token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+        },
+      });
+    } catch (err) {
+      console.error('Registration error:', err);
+      res.status(500).json({ message: 'Server error during registration' });
+    }
+  }
+);
 
 // POST /api/login
 router.post(

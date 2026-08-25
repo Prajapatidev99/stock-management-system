@@ -18,7 +18,7 @@ router.use(protect);
 router.get('/', async (req, res) => {
   try {
     const { type, search } = req.query;
-    const filter = { isDeleted: false };
+    const filter = { isDeleted: false, user_id: req.user._id };
 
     if (type && ['wholesaler', 'retailer'].includes(type)) {
       filter.type = type;
@@ -57,7 +57,13 @@ router.post(
 
       const { name, type, phone, address } = req.body;
 
-      const contact = await Contact.create({ name, type, phone, address });
+      const contact = await Contact.create({
+        name,
+        type,
+        phone,
+        address,
+        user_id: req.user._id,
+      });
       res.status(201).json(contact);
     } catch (err) {
       res.status(500).json({ message: 'Failed to create contact' });
@@ -80,7 +86,7 @@ router.put(
       }
 
       const contact = await Contact.findOneAndUpdate(
-        { _id: req.params.id, isDeleted: false },
+        { _id: req.params.id, user_id: req.user._id, isDeleted: false },
         { $set: req.body },
         { new: true, runValidators: true }
       );
@@ -99,12 +105,12 @@ router.put(
 // ─── GET /api/contacts/:id/profile ─────────────────────────────────────────────
 router.get('/:id/profile', async (req, res) => {
   try {
-    const contact = await Contact.findOne({ _id: req.params.id, isDeleted: false });
+    const contact = await Contact.findOne({ _id: req.params.id, user_id: req.user._id, isDeleted: false });
     if (!contact) {
       return res.status(404).json({ message: 'Contact not found' });
     }
 
-    const transactions = await Transaction.find({ contact_id: contact._id })
+    const transactions = await Transaction.find({ contact_id: contact._id, user_id: req.user._id })
       .populate('product_id', 'name category sku stock price purchase_price selling_price')
       .sort({ date: -1 });
 
@@ -186,7 +192,7 @@ router.get('/:id/profile', async (req, res) => {
 // ─── DELETE /api/contacts/:id (soft delete) ─────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
-    const contact = await Contact.findOne({ _id: req.params.id, isDeleted: false });
+    const contact = await Contact.findOne({ _id: req.params.id, user_id: req.user._id, isDeleted: false });
     if (!contact) {
       return res.status(404).json({ message: 'Contact not found' });
     }
@@ -194,6 +200,7 @@ router.delete('/:id', async (req, res) => {
     // Check for unpaid balance
     const unpaidTxs = await Transaction.find({
       contact_id: contact._id,
+      user_id: req.user._id,
       remaining_balance: { $gt: 0 },
     });
 

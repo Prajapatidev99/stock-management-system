@@ -1,23 +1,23 @@
 'use client';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useAuth } from '@/context/AuthContext';
-import { AuthProvider } from '@/context/AuthContext';
+import { useAuth, AuthProvider } from '@/context/AuthContext';
 
-function LoginForm() {
-  const { login } = useAuth();
+function RegisterForm() {
+  const { registerUser } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, watch, formState: { errors } } = useForm();
+  const password = watch('password');
 
   const onSubmit = async (data) => {
     setError('');
     setLoading(true);
     try {
-      await login(data.email, data.password);
+      await registerUser(data.name, data.email, data.password);
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -41,9 +41,9 @@ function LoginForm() {
           </div>
         </div>
 
-        <h1 style={{ fontSize: 22, marginBottom: 4 }}>Welcome back</h1>
+        <h1 style={{ fontSize: 22, marginBottom: 4 }}>Create an Account</h1>
         <p style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 0 }}>
-          Sign in to your admin account
+          Set up your shop inventory workspace
         </p>
 
         <form className="login-form" onSubmit={handleSubmit(onSubmit)}>
@@ -55,12 +55,24 @@ function LoginForm() {
           )}
 
           <div className="form-group">
+            <label className="form-label" htmlFor="name">Full Name / Shop Name</label>
+            <input
+              id="name"
+              type="text"
+              className={`form-input ${errors.name ? 'error' : ''}`}
+              placeholder="John Store"
+              {...register('name', { required: 'Name is required' })}
+            />
+            {errors.name && <span className="form-error">{errors.name.message}</span>}
+          </div>
+
+          <div className="form-group">
             <label className="form-label" htmlFor="email">Email Address</label>
             <input
               id="email"
               type="email"
               className={`form-input ${errors.email ? 'error' : ''}`}
-              placeholder="admin@shop.com"
+              placeholder="owner@shop.com"
               {...register('email', {
                 required: 'Email is required',
                 pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' },
@@ -76,26 +88,44 @@ function LoginForm() {
               type="password"
               className={`form-input ${errors.password ? 'error' : ''}`}
               placeholder="••••••••"
-              {...register('password', { required: 'Password is required' })}
+              {...register('password', {
+                required: 'Password is required',
+                minLength: { value: 6, message: 'Password must be at least 6 characters' },
+              })}
             />
             {errors.password && <span className="form-error">{errors.password.message}</span>}
           </div>
 
+          <div className="form-group">
+            <label className="form-label" htmlFor="confirmPassword">Confirm Password</label>
+            <input
+              id="confirmPassword"
+              type="password"
+              className={`form-input ${errors.confirmPassword ? 'error' : ''}`}
+              placeholder="••••••••"
+              {...register('confirmPassword', {
+                required: 'Please confirm password',
+                validate: (val) => val === password || 'Passwords do not match',
+              })}
+            />
+            {errors.confirmPassword && <span className="form-error">{errors.confirmPassword.message}</span>}
+          </div>
+
           <button
-            id="login-submit"
+            id="register-submit"
             type="submit"
             className="btn btn-primary btn-lg"
             disabled={loading}
             style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}
           >
-            {loading ? <><span className="spinner" style={{ width: 15, height: 15, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} /> Signing in…</> : 'Sign In'}
+            {loading ? <><span className="spinner" style={{ width: 15, height: 15, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} /> Creating Account…</> : 'Register'}
           </button>
         </form>
 
         <p style={{ marginTop: 24, fontSize: 13, color: 'var(--gray-500)', textAlign: 'center' }}>
-          Don't have an account?{' '}
-          <a href="/register" style={{ color: 'var(--primary-600)', fontWeight: 600, textDecoration: 'none' }}>
-            Register here
+          Already have an account?{' '}
+          <a href="/login" style={{ color: 'var(--primary-600)', fontWeight: 600, textDecoration: 'none' }}>
+            Sign in
           </a>
         </p>
       </div>
@@ -103,10 +133,10 @@ function LoginForm() {
   );
 }
 
-export default function LoginPage() {
+export default function RegisterPage() {
   return (
     <AuthProvider>
-      <LoginForm />
+      <RegisterForm />
     </AuthProvider>
   );
 }

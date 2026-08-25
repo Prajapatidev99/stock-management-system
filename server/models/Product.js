@@ -31,6 +31,11 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User ID is required'],
+    },
   },
   { timestamps: true }
 );
@@ -41,7 +46,7 @@ productSchema.virtual('profit_margin').get(function () {
   return (((this.selling_price - this.purchase_price) / this.purchase_price) * 100).toFixed(2);
 });
 
-productSchema.index({ name: 'text', category: 'text' });
-productSchema.index({ isDeleted: 1 });
+productSchema.index({ user_id: 1, name: 'text', category: 'text' });
+productSchema.index({ user_id: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('Product', productSchema);
