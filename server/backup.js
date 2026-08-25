@@ -18,6 +18,7 @@ const Contact = require('./models/Contact');
 const Product = require('./models/Product');
 const Transaction = require('./models/Transaction');
 const User = require('./models/User');
+const PaymentLog = require('./models/PaymentLog');
 
 const BACKUPS_DIR = path.join(__dirname, 'backups');
 const MAX_BACKUPS = 30;
@@ -76,11 +77,12 @@ async function backup() {
 
     // Export all collections
     console.log('📦 Exporting collections...');
-    const [contacts, products, transactions, users] = await Promise.all([
+    const [contacts, products, transactions, users, paymentLogs] = await Promise.all([
       Contact.find({}).lean(),
       Product.find({}).lean(),
       Transaction.find({}).lean(),
       User.find({}).lean(),
+      PaymentLog.find({}).lean(),
     ]);
 
     const backupData = {
@@ -93,14 +95,16 @@ async function backup() {
           products: products.length,
           transactions: transactions.length,
           users: users.length,
+          paymentLogs: paymentLogs.length,
         },
-        totalDocuments: contacts.length + products.length + transactions.length + users.length,
+        totalDocuments: contacts.length + products.length + transactions.length + users.length + paymentLogs.length,
       },
       data: {
         contacts,
         products,
         transactions,
         users,
+        paymentLogs,
       },
     };
 

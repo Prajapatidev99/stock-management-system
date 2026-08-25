@@ -20,6 +20,7 @@ const Contact = require('./models/Contact');
 const Product = require('./models/Product');
 const Transaction = require('./models/Transaction');
 const User = require('./models/User');
+const PaymentLog = require('./models/PaymentLog');
 
 const BACKUPS_DIR = path.join(__dirname, 'backups');
 
@@ -148,6 +149,7 @@ async function restore() {
         Product.deleteMany({}, { session }),
         Transaction.deleteMany({}, { session }),
         User.deleteMany({}, { session }),
+        PaymentLog.deleteMany({}, { session }),
       ]);
 
       console.log('📥 Inserting backup data...');
@@ -168,6 +170,10 @@ async function restore() {
       if (backupData.data.users?.length > 0) {
         await User.insertMany(backupData.data.users, { session });
         results.users = backupData.data.users.length;
+      }
+      if (backupData.data.paymentLogs?.length > 0) {
+        await PaymentLog.insertMany(backupData.data.paymentLogs, { session });
+        results.paymentLogs = backupData.data.paymentLogs.length;
       }
 
       await session.commitTransaction();
