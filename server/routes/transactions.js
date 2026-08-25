@@ -59,15 +59,19 @@ router.post(
       let contactObj = null;
 
       if (contact_id && isValidId(contact_id)) {
-        contactObj = await Contact.findOne({ _id: contact_id, user_id: req.user._id, isDeleted: false }).session(session);
+        contactObj = await Contact.findOne({
+          _id: contact_id,
+          isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
+        }).session(session);
       }
 
       const wName = (wholesaler_name || contact_name || '').trim();
       if (!contactObj && wName) {
         contactObj = await Contact.findOne({
           name: { $regex: new RegExp(`^${escapeRegex(wName)}$`, 'i') },
-          user_id: req.user._id,
           isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
         }).session(session);
 
         if (!contactObj) {
@@ -88,15 +92,19 @@ router.post(
       let productObj = null;
 
       if (product_id && isValidId(product_id)) {
-        productObj = await Product.findOne({ _id: product_id, user_id: req.user._id, isDeleted: false }).session(session);
+        productObj = await Product.findOne({
+          _id: product_id,
+          isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
+        }).session(session);
       }
 
       const pName = (product_name || '').trim();
       if (!productObj && pName) {
         productObj = await Product.findOne({
           name: { $regex: new RegExp(`^${escapeRegex(pName)}$`, 'i') },
-          user_id: req.user._id,
           isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
         }).session(session);
       }
 
@@ -241,15 +249,19 @@ router.post(
       // 1. Resolve Retailer Contact
       let contactObj = null;
       if (contact_id && isValidId(contact_id)) {
-        contactObj = await Contact.findOne({ _id: contact_id, user_id: req.user._id, isDeleted: false }).session(session);
+        contactObj = await Contact.findOne({
+          _id: contact_id,
+          isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
+        }).session(session);
       }
 
       const rName = (retailer_name || contact_name || '').trim();
       if (!contactObj && rName) {
         contactObj = await Contact.findOne({
           name: { $regex: new RegExp(`^${escapeRegex(rName)}$`, 'i') },
-          user_id: req.user._id,
           isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
         }).session(session);
 
         if (!contactObj) {
@@ -269,15 +281,19 @@ router.post(
       // 2. Resolve Product and check available stock
       let productObj = null;
       if (product_id && isValidId(product_id)) {
-        productObj = await Product.findOne({ _id: product_id, user_id: req.user._id, isDeleted: false }).session(session);
+        productObj = await Product.findOne({
+          _id: product_id,
+          isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
+        }).session(session);
       }
 
       const pName = (product_name || '').trim();
       if (!productObj && pName) {
         productObj = await Product.findOne({
           name: { $regex: new RegExp(`^${escapeRegex(pName)}$`, 'i') },
-          user_id: req.user._id,
           isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
         }).session(session);
       }
 

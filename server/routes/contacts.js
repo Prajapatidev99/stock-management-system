@@ -18,7 +18,10 @@ router.use(protect);
 router.get('/', async (req, res) => {
   try {
     const { type, search } = req.query;
-    const filter = { isDeleted: false, user_id: req.user._id };
+    const filter = {
+      isDeleted: false,
+      $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
+    };
 
     if (type && ['wholesaler', 'retailer'].includes(type)) {
       filter.type = type;
@@ -26,9 +29,13 @@ router.get('/', async (req, res) => {
 
     if (search) {
       const safeSearch = escapeRegex(search);
-      filter.$or = [
-        { name: { $regex: safeSearch, $options: 'i' } },
-        { phone: { $regex: safeSearch, $options: 'i' } },
+      filter.$and = [
+        {
+          $or: [
+            { name: { $regex: safeSearch, $options: 'i' } },
+            { phone: { $regex: safeSearch, $options: 'i' } },
+          ],
+        },
       ];
     }
 
@@ -86,8 +93,12 @@ router.put(
       }
 
       const contact = await Contact.findOneAndUpdate(
-        { _id: req.params.id, user_id: req.user._id, isDeleted: false },
-        { $set: req.body },
+        {
+          _id: req.params.id,
+          isDeleted: false,
+          $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
+        },
+        { $set: { ...req.body, user_id: req.user._id } },
         { new: true, runValidators: true }
       );
 
@@ -105,12 +116,19 @@ router.put(
 // ─── GET /api/contacts/:id/profile ─────────────────────────────────────────────
 router.get('/:id/profile', async (req, res) => {
   try {
-    const contact = await Contact.findOne({ _id: req.params.id, user_id: req.user._id, isDeleted: false });
+    const contact = await Contact.findOne({
+      _id: req.params.id,
+      isDeleted: false,
+      $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
+    });
     if (!contact) {
       return res.status(404).json({ message: 'Contact not found' });
     }
 
-    const transactions = await Transaction.find({ contact_id: contact._id, user_id: req.user._id })
+    const transactions = await Transaction.find({
+      contact_id: contact._id,
+      $or: [{ user_id: req.user._id }, { user_id: { $exists: false } }, { user_id: null }],
+    })
       .populate('product_id', 'name category sku stock price purchase_price selling_price')
       .sort({ date: -1 });
 
