@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, query, validationResult } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const Contact = require('../models/Contact');
 const Transaction = require('../models/Transaction');
 const { protect } = require('../middleware/auth');
@@ -18,7 +18,10 @@ router.use(protect);
 router.get('/', async (req, res) => {
   try {
     const { type, search } = req.query;
-    const filter = { isDeleted: false, user_id: req.user._id };
+    // SuperAdmin sees all contacts; regular admin sees only their own
+    const filter = req.user.role === 'superadmin'
+      ? { isDeleted: false }
+      : { isDeleted: false, user_id: req.user._id };
 
     if (type && ['wholesaler', 'retailer'].includes(type)) {
       filter.type = type;
@@ -45,8 +48,8 @@ router.post(
   [
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('type').isIn(['wholesaler', 'retailer']).withMessage('Type must be wholesaler or retailer'),
-    body('phone').optional({ nullable: true }).trim(),
-    body('address').optional({ nullable: true }).trim(),
+    body('phone').optional({ nullable: true }).trim().isLength({ max: 20 }).withMessage('Phone cannot exceed 20 characters'),
+    body('address').optional({ nullable: true }).trim().isLength({ max: 300 }).withMessage('Address cannot exceed 300 characters'),
   ],
   async (req, res) => {
     try {
@@ -77,6 +80,8 @@ router.put(
   [
     body('name').optional().trim().notEmpty().withMessage('Name cannot be empty'),
     body('type').optional().isIn(['wholesaler', 'retailer']).withMessage('Invalid type'),
+    body('phone').optional({ nullable: true }).trim(),
+    body('address').optional({ nullable: true }).trim(),
   ],
   async (req, res) => {
     try {
@@ -85,9 +90,21 @@ router.put(
         return res.status(400).json({ message: errors.array()[0].msg });
       }
 
+      const filter = req.user.role === 'superadmin'
+        ? { _id: req.params.id, isDeleted: false }
+        : { _id: req.params.id, user_id: req.user._id, isDeleted: false };
+
+      // Whitelist only safe fields — prevents mass assignment of user_id, isDeleted, etc.
+      const { name, type, phone, address } = req.body;
+      const updateFields = {};
+      if (name !== undefined)    updateFields.name    = name;
+      if (type !== undefined)    updateFields.type    = type;
+      if (phone !== undefined)   updateFields.phone   = phone;
+      if (address !== undefined) updateFields.address = address;
+
       const contact = await Contact.findOneAndUpdate(
-        { _id: req.params.id, user_id: req.user._id, isDeleted: false },
-        { $set: req.body },
+        filter,
+        { $set: updateFields },
         { new: true, runValidators: true }
       );
 
@@ -105,12 +122,20 @@ router.put(
 // ─── GET /api/contacts/:id/profile ─────────────────────────────────────────────
 router.get('/:id/profile', async (req, res) => {
   try {
-    const contact = await Contact.findOne({ _id: req.params.id, user_id: req.user._id, isDeleted: false });
+    const contactFilter = req.user.role === 'superadmin'
+      ? { _id: req.params.id, isDeleted: false }
+      : { _id: req.params.id, user_id: req.user._id, isDeleted: false };
+
+    const contact = await Contact.findOne(contactFilter);
     if (!contact) {
       return res.status(404).json({ message: 'Contact not found' });
     }
 
-    const transactions = await Transaction.find({ contact_id: contact._id, user_id: req.user._id })
+    const txFilter = req.user.role === 'superadmin'
+      ? { contact_id: contact._id }
+      : { contact_id: contact._id, user_id: req.user._id };
+
+    const transactions = await Transaction.find(txFilter)
       .populate('product_id', 'name category sku stock price purchase_price selling_price')
       .sort({ date: -1 });
 
@@ -133,7 +158,7 @@ router.get('/:id/profile', async (req, res) => {
     const cashPaid = transactions.reduce((acc, t) => acc + (t.payment_mode === 'cash' ? (t.amount_paid || 0) : 0), 0);
     const onlinePaid = transactions.reduce((acc, t) => acc + (t.payment_mode === 'online' ? (t.amount_paid || 0) : 0), 0);
     const totalPaid = transactions.reduce((acc, t) => acc + (t.amount_paid || 0), 0);
-    
+
     // Remaining balance is total net amount minus total paid
     const remainingBalance = transactions.reduce((acc, t) => acc + (t.remaining_balance || 0), 0);
     const returnCount = transactions.filter(t => t.type === 'purchase_return' || t.type === 'sales_return').length;
@@ -192,17 +217,21 @@ router.get('/:id/profile', async (req, res) => {
 // ─── DELETE /api/contacts/:id (soft delete) ─────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
-    const contact = await Contact.findOne({ _id: req.params.id, user_id: req.user._id, isDeleted: false });
+    const contactFilter = req.user.role === 'superadmin'
+      ? { _id: req.params.id, isDeleted: false }
+      : { _id: req.params.id, user_id: req.user._id, isDeleted: false };
+
+    const contact = await Contact.findOne(contactFilter);
     if (!contact) {
       return res.status(404).json({ message: 'Contact not found' });
     }
 
     // Check for unpaid balance
-    const unpaidTxs = await Transaction.find({
-      contact_id: contact._id,
-      user_id: req.user._id,
-      remaining_balance: { $gt: 0 },
-    });
+    const unpaidTxFilter = req.user.role === 'superadmin'
+      ? { contact_id: contact._id, remaining_balance: { $gt: 0 } }
+      : { contact_id: contact._id, user_id: req.user._id, remaining_balance: { $gt: 0 } };
+
+    const unpaidTxs = await Transaction.find(unpaidTxFilter);
 
     const unpaidBalance = unpaidTxs.reduce((sum, tx) => sum + (tx.remaining_balance || 0), 0);
 

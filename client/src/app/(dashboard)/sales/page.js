@@ -2,12 +2,10 @@
 import { useEffect, useState, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import TopNav from '@/components/TopNav';
+import Modal from '@/components/Modal';
 import api from '@/lib/api';
 import { format } from 'date-fns';
-
-function fmt(n) {
-  return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { fmt } from '@/lib/utils';
 
 function SalesContent() {
   const searchParams = useSearchParams();
@@ -21,6 +19,11 @@ function SalesContent() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
   const [success, setSuccess]       = useState('');
+
+  // Void Modal state
+  const [voidTx, setVoidTx]                 = useState(null);
+  const [voidSubmitting, setVoidSubmitting] = useState(false);
+  const [voidError, setVoidError]           = useState('');
 
   // Retailer State (Direct Type or Select)
   const [selectedRetailerId, setSelectedRetailerId]   = useState(initialContactId);
@@ -515,16 +518,9 @@ function SalesContent() {
                         <td style={{ textAlign: 'right' }}>
                           <button
                             className="btn btn-danger btn-sm"
-                            onClick={async () => {
-                              if (confirm(`Are you sure you want to void this sales transaction? Stock will be reversed automatically.`)) {
-                                try {
-                                  const res = await api.delete(`/transactions/${tx._id}`);
-                                  alert(res.data.message || 'Transaction voided');
-                                  load();
-                                } catch (err) {
-                                  alert(err.response?.data?.message || 'Failed to void transaction');
-                                }
-                              }
+                            onClick={() => {
+                              setVoidError('');
+                              setVoidTx(tx);
                             }}
                           >
                             Void
@@ -539,6 +535,44 @@ function SalesContent() {
           </div>
         </div>
       </div>
+
+      {/* Void Confirmation Modal */}
+      {voidTx && (
+        <Modal
+          isOpen={!!voidTx}
+          onClose={() => setVoidTx(null)}
+          title={`Void ${voidTx.type === 'sales_return' ? 'Sales Return' : 'Sale'} Transaction`}
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setVoidTx(null)} disabled={voidSubmitting}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={async () => {
+                  setVoidSubmitting(true);
+                  setVoidError('');
+                  try {
+                    await api.delete(`/transactions/${voidTx._id}`);
+                    setVoidTx(null);
+                    load();
+                  } catch (err) {
+                    setVoidError(err.response?.data?.message || 'Failed to void transaction');
+                  } finally {
+                    setVoidSubmitting(false);
+                  }
+                }}
+                disabled={voidSubmitting}
+              >
+                {voidSubmitting ? <><span className="spinner" style={{ width: 13, height: 13, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} /> Voiding…</> : 'Yes, Void Transaction'}
+              </button>
+            </>
+          }
+        >
+          {voidError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{voidError}</div>}
+          <p>Are you sure you want to void this sales transaction? Inventory stock will be adjusted automatically.</p>
+        </Modal>
+      )}
     </>
   );
 }

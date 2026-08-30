@@ -74,9 +74,8 @@ const navItems = [
         href: '/dues',
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="1" x2="12" y2="23"/>
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            <circle cx="12" cy="12" r="10"/>
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <line x1="2" y1="10" x2="22" y2="10"/>
           </svg>
         ),
       },
@@ -176,24 +175,42 @@ export default function Sidebar({ collapsed, toggleCollapse, mobileOpen, closeMo
               gap: 9,
               padding: '8px 10px',
               borderRadius: 'var(--radius)',
-              background: 'var(--gray-50)',
+              background: user?.role === 'superadmin' ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' : 'var(--gray-50)',
               marginBottom: 6,
+              border: user?.role === 'superadmin' ? '1px solid rgba(251,191,36,0.3)' : 'none',
             }}>
               <div style={{
                 width: 30, height: 30,
-                background: 'var(--gray-900)',
+                background: user?.role === 'superadmin' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'var(--gray-900)',
                 borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 12, fontWeight: 700, color: 'white', flexShrink: 0,
               }}>
-                {user?.name?.[0]?.toUpperCase() || 'A'}
+                {user?.role === 'superadmin'
+                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+                  : (user?.name?.[0]?.toUpperCase() || 'A')
+                }
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user?.name || 'Admin'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: user?.role === 'superadmin' ? '#fbbf24' : 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user?.name || 'Admin'}
+                  </div>
+                  {user?.role === 'superadmin' && (
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      background: 'linear-gradient(90deg, #f59e0b, #d97706)',
+                      color: 'white',
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      letterSpacing: '0.05em',
+                      flexShrink: 0,
+                    }}>SUPERADMIN</span>
+                  )}
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--gray-500)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user?.email || ''}
+                <div style={{ fontSize: 10, color: user?.role === 'superadmin' ? 'rgba(251,191,36,0.7)' : 'var(--gray-500)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {user?.role === 'superadmin' ? '👑 Developer · All Data Access' : user?.email || ''}
                 </div>
               </div>
             </div>

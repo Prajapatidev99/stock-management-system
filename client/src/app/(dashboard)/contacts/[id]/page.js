@@ -7,10 +7,7 @@ import Modal from '@/components/Modal';
 import api from '@/lib/api';
 import { format } from 'date-fns';
 import { generateContactPDF } from '@/lib/pdfGenerator';
-
-function fmt(n) {
-  return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { fmt } from '@/lib/utils';
 
 export default function ContactDetailPage() {
   const params = useParams();

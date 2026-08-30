@@ -7,29 +7,25 @@ if (!API_BASE.endsWith('/api')) {
 
 const api = axios.create({
   baseURL: API_BASE,
-  withCredentials: true,
+  withCredentials: true, // Sends the httpOnly cookie on every request — no localStorage token needed
+  timeout: 10000,        // 10s global timeout — prevents requests from hanging forever
 });
 
-// Attach token to every request
-api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  }
-  return config;
-});
+// NOTE: No Authorization header interceptor here.
+// Auth is handled purely via the httpOnly cookie set by the server on login.
+// This eliminates the XSS token-theft vector (no token ever in JavaScript).
 
-// Handle 401 globally — redirect to login
+// Handle 401 globally — clear user state and redirect to login
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        // Only redirect if NOT already on /login page to prevent infinite reload loop
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

@@ -1,13 +1,20 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { useAuth } from '@/context/AuthContext';
-import { AuthProvider } from '@/context/AuthContext';
+import { useAuth, AuthProvider } from '@/context/AuthContext';
 
 function LoginForm() {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
+  const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      router.replace('/');
+    }
+  }, [user, router]);
 
   const { register, handleSubmit, formState: { errors } } = useForm();
 
@@ -91,13 +98,6 @@ function LoginForm() {
             {loading ? <><span className="spinner" style={{ width: 15, height: 15, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} /> Signing in…</> : 'Sign In'}
           </button>
         </form>
-
-        <p style={{ marginTop: 24, fontSize: 13, color: 'var(--gray-500)', textAlign: 'center' }}>
-          Don't have an account?{' '}
-          <a href="/register" style={{ color: 'var(--primary-600)', fontWeight: 600, textDecoration: 'none' }}>
-            Register here
-          </a>
-        </p>
       </div>
     </div>
   );

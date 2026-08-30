@@ -20,6 +20,7 @@ export default function ContactsPage() {
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState('');
   const [deleteId, setDeleteId]       = useState(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
@@ -79,12 +80,13 @@ export default function ContactsPage() {
 
   const handleDelete = async (id, e) => {
     e?.stopPropagation();
+    setDeleteError('');
     try {
       await api.delete(`/contacts/${id}`);
       setDeleteId(null);
       fetchContacts();
-    } catch {
-      alert('Failed to delete contact');
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Failed to delete contact');
     }
   };
 
@@ -243,15 +245,16 @@ export default function ContactsPage() {
       {/* Delete Confirm Modal */}
       <Modal
         isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
+        onClose={() => { setDeleteId(null); setDeleteError(''); }}
         title="Delete Contact"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setDeleteId(null)}>Cancel</button>
+            <button className="btn btn-secondary" onClick={() => { setDeleteId(null); setDeleteError(''); }}>Cancel</button>
             <button className="btn btn-danger" onClick={(e) => handleDelete(deleteId, e)}>Yes, Delete</button>
           </>
         }
       >
+        {deleteError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{deleteError}</div>}
         <p>Are you sure you want to delete this contact? This action will soft-delete the record and it won't appear in future transactions.</p>
       </Modal>
     </>

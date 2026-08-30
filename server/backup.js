@@ -168,12 +168,14 @@ module.exports = { backup: async function runBackup() {
     const Product = require('./models/Product');
     const Transaction = require('./models/Transaction');
     const User = require('./models/User');
+    const PaymentLog = require('./models/PaymentLog'); // ← was missing from cron backup
 
-    const [contacts, products, transactions, users] = await Promise.all([
+    const [contacts, products, transactions, users, paymentLogs] = await Promise.all([
       Contact.find({}).lean(),
       Product.find({}).lean(),
       Transaction.find({}).lean(),
       User.find({}).lean(),
+      PaymentLog.find({}).lean(),
     ]);
 
     const backupData = {
@@ -186,10 +188,11 @@ module.exports = { backup: async function runBackup() {
           products: products.length,
           transactions: transactions.length,
           users: users.length,
+          paymentLogs: paymentLogs.length,
         },
-        totalDocuments: contacts.length + products.length + transactions.length + users.length,
+        totalDocuments: contacts.length + products.length + transactions.length + users.length + paymentLogs.length,
       },
-      data: { contacts, products, transactions, users },
+      data: { contacts, products, transactions, users, paymentLogs },
     };
 
     const jsonStr = JSON.stringify(backupData, null, 0);
@@ -211,6 +214,7 @@ module.exports = { backup: async function runBackup() {
     return { success: false, error: err.message };
   }
 }};
+
 
 // Run directly if called as script
 if (require.main === module) {

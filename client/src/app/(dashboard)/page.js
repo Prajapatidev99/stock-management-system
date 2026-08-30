@@ -160,7 +160,7 @@ export default function DashboardPage() {
             )}
 
             {/* ── Chart + Recent Transactions ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
               {/* Chart */}
               <div className="chart-card">
                 <div className="chart-header">

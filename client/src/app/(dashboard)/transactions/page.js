@@ -1,18 +1,24 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import TopNav from '@/components/TopNav';
+import Modal from '@/components/Modal';
 import api from '@/lib/api';
 import { format } from 'date-fns';
-
-function fmt(n) { return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+import { fmt } from '@/lib/utils';
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
   const [contacts, setContacts]         = useState([]);
   const [products, setProducts]         = useState([]);
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState('');
   const [exporting, setExporting]       = useState(false);
   const [total, setTotal]               = useState(0);
+
+  // Void Modal state
+  const [voidTx, setVoidTx]             = useState(null);
+  const [voidSubmitting, setVoidSubmitting] = useState(false);
+  const [voidError, setVoidError]       = useState('');
 
   // Filters
   const [typeFilter, setTypeFilter]       = useState('');
@@ -25,6 +31,7 @@ export default function TransactionsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const params = { page, limit: 30 };
       if (typeFilter)    params.type       = typeFilter;
@@ -37,6 +44,9 @@ export default function TransactionsPage() {
       setTransactions(res.data.transactions || []);
       setTotal(res.data.total || 0);
       setPages(res.data.pages || 1);
+    } catch (err) {
+      setLoadError(err.response?.data?.message || 'Failed to load transactions');
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
@@ -63,7 +73,9 @@ export default function TransactionsPage() {
   const exportPDF = async () => {
     setExporting(true);
     try {
-      // Fetch all transactions for export (no pagination)
+      const pdfFmt = (n) => 'Rs. ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      // Fetch transactions for export
       const params = { limit: 10000 };
       if (typeFilter)    params.type       = typeFilter;
       if (contactFilter) params.contact_id = contactFilter;
@@ -74,24 +86,24 @@ export default function TransactionsPage() {
       const res = await api.get('/transactions', { params });
       const allTx = res.data.transactions || [];
 
-      // Dynamic import to avoid SSR issues
       const jsPDFModule = await import('jspdf');
       const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF;
-      // Import autotable — it attaches itself to the jsPDF prototype
       await import('jspdf-autotable');
 
       const doc = new jsPDF();
 
-      // Header
+      // Header Banner
+      doc.setFillColor(31, 41, 55);
+      doc.rect(0, 0, 210, 36, 'F');
+
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('Transaction History', 14, 20);
+      doc.text('TRANSACTION HISTORY & REPORT', 14, 18);
 
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100);
-      doc.text(`Generated: ${format(new Date(), 'dd MMM yyyy, HH:mm')}`, 14, 28);
-      doc.text(`Total records: ${allTx.length}`, 14, 34);
+      doc.text(`Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}   |   Total Records: ${allTx.length}`, 14, 27);
 
       const formatTxType = (t) => {
         if (t === 'purchase') return 'Purchase';
@@ -101,44 +113,77 @@ export default function TransactionsPage() {
         return t || '—';
       };
 
-      const totalPurchases = allTx.filter(t => t.type === 'purchase').reduce((s, t) => s + t.total_amount, 0) -
-                             allTx.filter(t => t.type === 'purchase_return').reduce((s, t) => s + t.total_amount, 0);
-      const totalSales     = allTx.filter(t => t.type === 'sale').reduce((s, t) => s + t.total_amount, 0) -
-                             allTx.filter(t => t.type === 'sales_return').reduce((s, t) => s + t.total_amount, 0);
-      doc.text(`Net Purchases: ${fmt(Math.max(0, totalPurchases))}    Net Sales: ${fmt(Math.max(0, totalSales))}    Profit: ${fmt(totalSales - totalPurchases)}`, 14, 40);
+      const totalPurchases = allTx.filter(t => t.type === 'purchase').reduce((s, t) => s + (t.total_amount || 0), 0) -
+                             allTx.filter(t => t.type === 'purchase_return').reduce((s, t) => s + (t.total_amount || 0), 0);
+      const totalSales     = allTx.filter(t => t.type === 'sale').reduce((s, t) => s + (t.total_amount || 0), 0) -
+                             allTx.filter(t => t.type === 'sales_return').reduce((s, t) => s + (t.total_amount || 0), 0);
+      const netProfit      = totalSales - totalPurchases;
 
-      doc.setTextColor(0);
+      // Summary Bar
+      doc.setFillColor(243, 244, 246);
+      doc.roundedRect(14, 42, 182, 14, 2, 2, 'F');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(31, 41, 55);
+      doc.text(`Net Purchases: ${pdfFmt(Math.max(0, totalPurchases))}`, 20, 51);
+      doc.text(`Net Sales: ${pdfFmt(Math.max(0, totalSales))}`, 85, 51);
+      doc.setTextColor(netProfit >= 0 ? 16 : 220, netProfit >= 0 ? 185 : 38, netProfit >= 0 ? 129 : 38);
+      doc.text(`Estimated Profit: ${pdfFmt(netProfit)}`, 145, 51);
 
       doc.autoTable({
-        startY: 48,
-        head: [['Date', 'Type', 'Product', 'Contact', 'Qty', 'Price', 'Total']],
+        startY: 62,
+        head: [['Date', 'Type', 'Product', 'Contact', 'Qty', 'Unit Price', 'Total Amount']],
         body: allTx.map(tx => [
           format(new Date(tx.date), 'dd/MM/yyyy'),
           formatTxType(tx.type),
           tx.product_id?.name || '—',
           tx.contact_id?.name || '—',
           tx.quantity,
-          fmt(tx.price),
-          fmt(tx.total_amount),
+          pdfFmt(tx.price),
+          pdfFmt(tx.total_amount),
         ]),
-        headStyles: { fillColor: [17, 24, 39], fontSize: 9 },
-        bodyStyles: { fontSize: 9 },
-        alternateRowStyles: { fillColor: [249, 250, 251] },
+        theme: 'striped',
+        headStyles: { fillColor: [31, 41, 55], textColor: 255, fontSize: 8, fontStyle: 'bold', halign: 'center' },
+        styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
         columnStyles: {
-          0: { cellWidth: 24 },
-          1: { cellWidth: 30 },
+          0: { cellWidth: 22, halign: 'center' },
+          1: { cellWidth: 28, halign: 'left' },
+          2: { cellWidth: 42, halign: 'left' },
+          3: { cellWidth: 42, halign: 'left' },
           4: { cellWidth: 14, halign: 'center' },
-          5: { cellWidth: 28, halign: 'right' },
-          6: { cellWidth: 28, halign: 'right' },
+          5: { cellWidth: 24, halign: 'right' },
+          6: { cellWidth: 26, halign: 'right' },
+        },
+        didDrawPage: (data) => {
+          const totalPages = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setTextColor(156, 163, 175);
+          doc.text(`Page ${data.pageNumber} of ${totalPages}`, 196, 287, { align: 'right' });
+          doc.text('StockManager - Confidential Report', 14, 287);
         },
       });
 
-      doc.save(`transactions_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      doc.save(`Transaction_Report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
     } catch (err) {
       console.error(err);
       alert('Failed to export PDF');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleVoidConfirm = async () => {
+    if (!voidTx) return;
+    setVoidSubmitting(true);
+    setVoidError('');
+    try {
+      await api.delete(`/transactions/${voidTx._id}`);
+      setVoidTx(null);
+      load();
+    } catch (err) {
+      setVoidError(err.response?.data?.message || 'Failed to void transaction');
+    } finally {
+      setVoidSubmitting(false);
     }
   };
 
@@ -161,6 +206,8 @@ export default function TransactionsPage() {
       />
 
       <div className="page-content">
+        {loadError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{loadError}</div>}
+
         {/* ── Filters ── */}
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, alignItems: 'end' }}>
@@ -255,16 +302,9 @@ export default function TransactionsPage() {
                     <td style={{ textAlign: 'right' }}>
                       <button
                         className="btn btn-danger btn-sm"
-                        onClick={async () => {
-                          if (confirm(`Are you sure you want to void this ${tx.type.replace('_', ' ')}? Inventory will be automatically adjusted.`)) {
-                            try {
-                              const res = await api.delete(`/transactions/${tx._id}`);
-                              alert(res.data.message || 'Transaction voided');
-                              load();
-                            } catch (err) {
-                              alert(err.response?.data?.message || 'Failed to void transaction');
-                            }
-                          }
+                        onClick={() => {
+                          setVoidError('');
+                          setVoidTx(tx);
                         }}
                       >
                         Void / Delete
@@ -286,6 +326,28 @@ export default function TransactionsPage() {
           </div>
         )}
       </div>
+
+      {/* Void Modal */}
+      {voidTx && (
+        <Modal
+          isOpen={!!voidTx}
+          onClose={() => setVoidTx(null)}
+          title={`Void Transaction — ${voidTx.type.replace('_', ' ').toUpperCase()}`}
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setVoidTx(null)} disabled={voidSubmitting}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" onClick={handleVoidConfirm} disabled={voidSubmitting}>
+                {voidSubmitting ? <><span className="spinner" style={{ width: 13, height: 13, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} /> Voiding…</> : 'Yes, Void Transaction'}
+              </button>
+            </>
+          }
+        >
+          {voidError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{voidError}</div>}
+          <p>Are you sure you want to void this transaction? Stock quantity will be automatically adjusted to maintain accuracy.</p>
+        </Modal>
+      )}
     </>
   );
 }

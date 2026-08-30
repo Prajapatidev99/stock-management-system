@@ -38,4 +38,14 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+/**
+ * Middleware that allows only superadmin users to proceed.
+ */
+const requireSuperAdmin = (req, res, next) => {
+  if (req.user && req.user.role === 'superadmin') {
+    return next();
+  }
+  return res.status(403).json({ message: 'Access denied. SuperAdmin only.' });
+};
+
+module.exports = { protect, requireSuperAdmin };

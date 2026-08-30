@@ -19,6 +19,12 @@ function escapeRegex(text) {
   return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }
 
+// ─── Helper: Build user filter (superadmin sees all, admin sees own) ─────────────
+function userFilter(user) {
+  if (user.role === 'superadmin') return {};
+  return { user_id: user._id };
+}
+
 // ─── POST /api/transactions/purchase ────────────────────────────────────────────
 router.post(
   '/purchase',
@@ -26,6 +32,7 @@ router.post(
     body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
     body('price').isFloat({ min: 0 }).withMessage('Price must be a positive number'),
     body('date').optional().isISO8601().withMessage('Invalid date format'),
+    body('notes').optional({ nullable: true }).trim().isLength({ max: 500 }).withMessage('Notes cannot exceed 500 characters'),
   ],
   async (req, res) => {
     const session = await mongoose.startSession();
@@ -211,6 +218,7 @@ router.post(
     body('quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
     body('price').isFloat({ min: 0 }).withMessage('Price must be a positive number'),
     body('date').optional().isISO8601().withMessage('Invalid date format'),
+    body('notes').optional({ nullable: true }).trim().isLength({ max: 500 }).withMessage('Notes cannot exceed 500 characters'),
   ],
   async (req, res) => {
     const session = await mongoose.startSession();
@@ -585,7 +593,7 @@ router.get('/', async (req, res) => {
   try {
     const { type, contact_id, product_id, from, to, search, page = 1, limit = 50 } = req.query;
 
-    const filter = { user_id: req.user._id };
+    const filter = { ...userFilter(req.user) };
 
     if (type && ['purchase', 'sale', 'purchase_return', 'sales_return'].includes(type)) {
       filter.type = type;
@@ -636,26 +644,30 @@ router.get('/', async (req, res) => {
 // ─── GET /api/transactions/summary ──────────────────────────────────────────────
 router.get('/summary', async (req, res) => {
   try {
-    const userId = new mongoose.Types.ObjectId(req.user._id);
+    const isSuperAdmin = req.user.role === 'superadmin';
+    // For aggregation pipelines: superadmin matches all, admin matches by userId
+    const userMatchStage = isSuperAdmin ? {} : { user_id: new mongoose.Types.ObjectId(req.user._id) };
+    const productMatchStage = isSuperAdmin ? { isDeleted: false } : { user_id: new mongoose.Types.ObjectId(req.user._id), isDeleted: false };
+
     const [purchaseAgg, purchaseReturnAgg, saleAgg, salesReturnAgg, productStats, lowStockProducts] = await Promise.all([
       Transaction.aggregate([
-        { $match: { user_id: userId, type: 'purchase' } },
+        { $match: { ...userMatchStage, type: 'purchase' } },
         { $group: { _id: null, total: { $sum: '$total_amount' }, count: { $sum: 1 } } },
       ]),
       Transaction.aggregate([
-        { $match: { user_id: userId, type: 'purchase_return' } },
+        { $match: { ...userMatchStage, type: 'purchase_return' } },
         { $group: { _id: null, total: { $sum: '$total_amount' }, count: { $sum: 1 } } },
       ]),
       Transaction.aggregate([
-        { $match: { user_id: userId, type: 'sale' } },
+        { $match: { ...userMatchStage, type: 'sale' } },
         { $group: { _id: null, total: { $sum: '$total_amount' }, count: { $sum: 1 } } },
       ]),
       Transaction.aggregate([
-        { $match: { user_id: userId, type: 'sales_return' } },
+        { $match: { ...userMatchStage, type: 'sales_return' } },
         { $group: { _id: null, total: { $sum: '$total_amount' }, count: { $sum: 1 } } },
       ]),
       Product.aggregate([
-        { $match: { user_id: userId, isDeleted: false } },
+        { $match: productMatchStage },
         {
           $group: {
             _id: null,
@@ -664,7 +676,7 @@ router.get('/summary', async (req, res) => {
           },
         },
       ]),
-      Product.find({ user_id: userId, isDeleted: false, stock: { $lt: 10 } })
+      Product.find({ ...productMatchStage, stock: { $lt: 10 } })
         .select('name category stock purchase_price selling_price')
         .sort({ stock: 1 }),
     ]);
@@ -702,9 +714,11 @@ router.get('/chart', async (req, res) => {
     const fromDate = new Date();
     fromDate.setMonth(fromDate.getMonth() - parseInt(months));
 
-    const userId = new mongoose.Types.ObjectId(req.user._id);
+    const userMatchStage = req.user.role === 'superadmin'
+      ? { date: { $gte: fromDate } }
+      : { user_id: new mongoose.Types.ObjectId(req.user._id), date: { $gte: fromDate } };
     const data = await Transaction.aggregate([
-      { $match: { user_id: userId, date: { $gte: fromDate } } },
+      { $match: userMatchStage },
       {
         $group: {
           _id: {
@@ -725,18 +739,26 @@ router.get('/chart', async (req, res) => {
 });
 
 // ─── POST /api/transactions/pay-balance ──────────────────────────────────────────
-router.post('/pay-balance', async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { contact_id, amount: reqAmt, payment_mode, notes } = req.body;
-    let amountToPay = parseFloat(reqAmt);
-
-    if (!contact_id || isNaN(amountToPay) || amountToPay <= 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ message: 'Valid contact and payment amount are required' });
+router.post(
+  '/pay-balance',
+  [
+    body('contact_id').notEmpty().withMessage('Contact is required'),
+    body('amount').isFloat({ gt: 0 }).withMessage('Payment amount must be greater than 0'),
+    body('payment_mode').optional().isIn(['cash', 'online', 'bank', 'cheque', 'other']).withMessage('Invalid payment mode'),
+    body('notes').optional({ nullable: true }).trim().isLength({ max: 500 }).withMessage('Notes cannot exceed 500 characters'),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
     }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const { contact_id, amount: reqAmt, payment_mode, notes } = req.body;
+      let amountToPay = parseFloat(reqAmt);
 
     const contact = await Contact.findOne({ _id: contact_id, user_id: req.user._id, isDeleted: false }).session(session);
     if (!contact) {
@@ -804,7 +826,7 @@ router.post('/pay-balance', async (req, res) => {
 // ─── GET /api/transactions/dues ──────────────────────────────────────────────────
 router.get('/dues', async (req, res) => {
   try {
-    const unpaidTxs = await Transaction.find({ user_id: req.user._id, remaining_balance: { $gt: 0 } })
+    const unpaidTxs = await Transaction.find({ ...userFilter(req.user), remaining_balance: { $gt: 0 } })
       .populate('contact_id', 'name type phone address isDeleted')
       .populate('product_id', 'name');
 
@@ -871,7 +893,7 @@ router.get('/dues', async (req, res) => {
 router.get('/payment-logs', async (req, res) => {
   try {
     const { contact_id, limit = 50 } = req.query;
-    const filter = { user_id: req.user._id };
+    const filter = { ...userFilter(req.user) };
     if (contact_id && isValidId(contact_id)) {
       filter.contact_id = contact_id;
     }
@@ -899,13 +921,17 @@ router.delete('/:id', async (req, res) => {
   session.startTransaction();
 
   try {
-    const tx = await Transaction.findOne({ _id: req.params.id, user_id: req.user._id }).session(session);
+    const txFilter = { _id: req.params.id, ...userFilter(req.user) };
+    const tx = await Transaction.findOne(txFilter).session(session);
     if (!tx) {
       await session.abortTransaction();
       return res.status(404).json({ message: 'Transaction not found' });
     }
 
-    const product = await Product.findOne({ _id: tx.product_id, user_id: req.user._id }).session(session);
+    const productFilter = req.user.role === 'superadmin'
+      ? { _id: tx.product_id }
+      : { _id: tx.product_id, user_id: req.user._id };
+    const product = await Product.findOne(productFilter).session(session);
 
     if (product) {
       if (tx.type === 'purchase') {

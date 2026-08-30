@@ -12,41 +12,34 @@ export function AuthProvider({ children }) {
 
   // Restore session on mount
   useEffect(() => {
-    const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    if (token && savedUser) {
+    if (savedUser) {
       try {
         setUser(JSON.parse(savedUser));
       } catch {
         localStorage.removeItem('user');
       }
-      // Optionally verify token with server
-      api.get('/me')
-        .then((res) => setUser(res.data.user))
-        .catch(() => {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
     }
+
+    // Verify session with server via httpOnly cookie (no token in JS).
+    // 8s timeout prevents the spinner from hanging if the server is unreachable.
+    api.get('/me', { timeout: 8000 })
+      .then((res) => {
+        setUser(res.data.user);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+      })
+      .catch(() => {
+        // Cookie invalid/expired — clear stale user display data
+        localStorage.removeItem('user');
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email, password) => {
     const res = await api.post('/login', { email, password });
-    const { token, user: userData } = res.data;
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData);
-    router.push('/');
-  }, [router]);
-
-  const registerUser = useCallback(async (name, email, password) => {
-    const res = await api.post('/register', { name, email, password });
-    const { token, user: userData } = res.data;
-    localStorage.setItem('token', token);
+    const { user: userData } = res.data;
+    // Store only non-sensitive user display info (name, email, role) — NOT the token
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     router.push('/');
@@ -54,16 +47,15 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      await api.post('/logout');
+      await api.post('/logout'); // Server clears the httpOnly cookie
     } catch { /* ignore */ }
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
     router.push('/login');
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, registerUser, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

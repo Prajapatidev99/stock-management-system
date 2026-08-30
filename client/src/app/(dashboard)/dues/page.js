@@ -5,10 +5,7 @@ import TopNav from '@/components/TopNav';
 import Modal from '@/components/Modal';
 import api from '@/lib/api';
 import { format } from 'date-fns';
-
-function fmt(n) {
-  return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { fmt } from '@/lib/utils';
 
 export default function DuesPage() {
   const router = useRouter();
@@ -252,6 +249,7 @@ export default function DuesPage() {
             <label className="form-label">Notes (Optional)</label>
             <input
               className="form-input"
+              maxLength={500}
               placeholder="e.g. Received via GPay, Ref #12345"
               value={payNotes}
               onChange={(e) => setPayNotes(e.target.value)}

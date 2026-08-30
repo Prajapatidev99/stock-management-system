@@ -16,7 +16,10 @@ router.use(protect);
 router.get('/', async (req, res) => {
   try {
     const { search, category } = req.query;
-    const filter = { isDeleted: false, user_id: req.user._id };
+    // SuperAdmin sees all products; regular admin sees only their own
+    const filter = req.user.role === 'superadmin'
+      ? { isDeleted: false }
+      : { isDeleted: false, user_id: req.user._id };
 
     if (search) {
       const safeSearch = escapeRegex(search);
@@ -40,7 +43,11 @@ router.get('/', async (req, res) => {
 // ─── GET /api/products/:id ──────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
-    const product = await Product.findOne({ _id: req.params.id, user_id: req.user._id, isDeleted: false });
+    const filter = req.user.role === 'superadmin'
+      ? { _id: req.params.id, isDeleted: false }
+      : { _id: req.params.id, user_id: req.user._id, isDeleted: false };
+
+    const product = await Product.findOne(filter);
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.json(product);
   } catch (err) {
@@ -100,8 +107,12 @@ router.put(
       const updateData = { ...req.body };
       delete updateData.stock;
 
+      const filter = req.user.role === 'superadmin'
+        ? { _id: req.params.id, isDeleted: false }
+        : { _id: req.params.id, user_id: req.user._id, isDeleted: false };
+
       const product = await Product.findOneAndUpdate(
-        { _id: req.params.id, user_id: req.user._id, isDeleted: false },
+        filter,
         { $set: updateData },
         { new: true, runValidators: true }
       );
@@ -117,8 +128,12 @@ router.put(
 // ─── DELETE /api/products/:id (soft delete) ─────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
+    const filter = req.user.role === 'superadmin'
+      ? { _id: req.params.id, isDeleted: false }
+      : { _id: req.params.id, user_id: req.user._id, isDeleted: false };
+
     const product = await Product.findOneAndUpdate(
-      { _id: req.params.id, user_id: req.user._id, isDeleted: false },
+      filter,
       { $set: { isDeleted: true } },
       { new: true }
     );

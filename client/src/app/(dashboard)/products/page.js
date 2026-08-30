@@ -6,14 +6,13 @@ import Modal from '@/components/Modal';
 import api from '@/lib/api';
 import { format } from 'date-fns';
 import { useDebounce } from '@/lib/useDebounce';
+import { fmt } from '@/lib/utils';
 
 function stockClass(stock) {
   if (stock === 0) return 'stock-low';
   if (stock < 10)  return 'stock-mid';
   return 'stock-ok';
 }
-
-function fmt(n) { return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
 export default function ProductsPage() {
   const [products, setProducts]   = useState([]);
@@ -25,6 +24,7 @@ export default function ProductsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState('');
   const [deleteId, setDeleteId]   = useState(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
@@ -83,12 +83,13 @@ export default function ProductsPage() {
   };
 
   const handleDelete = async (id) => {
+    setDeleteError('');
     try {
       await api.delete(`/products/${id}`);
       setDeleteId(null);
       fetchProducts();
-    } catch {
-      alert('Failed to delete product');
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Failed to delete product');
     }
   };
 
@@ -235,15 +236,16 @@ export default function ProductsPage() {
       {/* Delete Confirm */}
       <Modal
         isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
+        onClose={() => { setDeleteId(null); setDeleteError(''); }}
         title="Delete Product"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setDeleteId(null)}>Cancel</button>
+            <button className="btn btn-secondary" onClick={() => { setDeleteId(null); setDeleteError(''); }}>Cancel</button>
             <button className="btn btn-danger" onClick={() => handleDelete(deleteId)}>Yes, Delete</button>
           </>
         }
       >
+        {deleteError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{deleteError}</div>}
         <p>Are you sure you want to delete this product? Transaction history will be preserved.</p>
       </Modal>
     </>
