@@ -52,13 +52,15 @@ router.post(
 
       const token = generateToken(user._id);
 
-      // Also set httpOnly cookie as fallback
-      res.cookie('token', token, {
+      const isProd = process.env.NODE_ENV === 'production';
+      const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
+      };
+
+      res.cookie('token', token, cookieOptions);
 
       res.json({
         token,
@@ -77,7 +79,12 @@ router.post(
 
 // POST /api/logout
 router.post('/logout', (req, res) => {
-  res.clearCookie('token');
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+  });
   res.json({ message: 'Logged out successfully' });
 });
 

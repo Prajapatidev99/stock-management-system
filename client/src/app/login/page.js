@@ -66,6 +66,7 @@ function LoginForm() {
             <input
               id="email"
               type="email"
+              autoComplete="username"
               className={`form-input ${errors.email ? 'error' : ''}`}
               placeholder="admin@shop.com"
               {...register('email', {
@@ -81,6 +82,7 @@ function LoginForm() {
             <input
               id="password"
               type="password"
+              autoComplete="current-password"
               className={`form-input ${errors.password ? 'error' : ''}`}
               placeholder="••••••••"
               {...register('password', { required: 'Password is required' })}
